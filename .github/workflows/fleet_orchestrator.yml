@@ -1,0 +1,84 @@
+name: TradingView Fleet Orchestrator
+
+on:
+  repository_dispatch:
+    types: [node_callback]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Fleet Action to Execute'
+        required: true
+        default: 'push_fleet'
+        type: choice
+        options:
+          - push_fleet
+          - push_node
+          - push_standby
+          - delete_fleet
+          - status
+      node_index:
+        description: 'Node Index (0-19, only needed for push_node)'
+        required: false
+        default: '0'
+  schedule:
+    # Backup safety fallback for Monday 00:15 UTC (in case of total network failure)
+    - cron: '15 0 * * 1'
+
+permissions:
+  contents: write
+
+jobs:
+  orchestrate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install kaggle
+
+      - name: Configure Git Identity
+        run: |
+          git config user.name "Fleet-Orchestrator"
+          git config user.email "actions@github.com"
+
+      - name: Handle Callback (repository_dispatch)
+        if: github.event_name == 'repository_dispatch'
+        run: |
+          echo "Processing incoming callback payload..."
+          python fleet_manager.py handle-callback --payload '${{ toJson(github.event.client_payload) }}'
+
+      - name: Manual Workflow Dispatch
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          ACTION="${{ inputs.action }}"
+          NODE_INDEX="${{ inputs.node_index }}"
+          echo "Executing manual action: $ACTION"
+          if [ "$ACTION" = "push_fleet" ]; then
+            python fleet_manager.py push-fleet
+          elif [ "$ACTION" = "push_node" ]; then
+            python fleet_manager.py push-node "$NODE_INDEX"
+          elif [ "$ACTION" = "push_standby" ]; then
+            python fleet_manager.py push-standby
+          elif [ "$ACTION" = "delete_fleet" ]; then
+            python fleet_manager.py delete-fleet
+          elif [ "$ACTION" = "status" ]; then
+            python fleet_manager.py status
+          fi
+
+      - name: Emergency Backup Cron Dispatch
+        if: github.event_name == 'schedule'
+        run: |
+          echo "Running emergency backup cron trigger for Monday weekly fleet..."
+          python fleet_manager.py push-fleet
