@@ -7,6 +7,15 @@ import argparse
 import subprocess
 from datetime import datetime, timezone
 
+try:
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace', line_buffering=True)
+    if hasattr(sys.stderr, 'reconfigure'):
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace', line_buffering=True)
+except Exception:
+    pass
+
+
 # 4 Kaggle Accounts Mapping: 5 nodes per account = 20 nodes (0 to 19)
 KAGGLE_ACCOUNTS = [
     {
