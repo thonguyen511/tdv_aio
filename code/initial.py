@@ -1403,6 +1403,8 @@ def main():
                     except Exception as e:
                         print(f"⚠️ Push data attempt {attempt+1}/5 failed: {e}")
                         time.sleep(3)
+                else:
+                    raise RuntimeError(f"Failed to push data for {csv_filename} chunk {chunk_idx+1} after 5 attempts.")
                         
                 if uncommitted_checkpoint_entries:
                     with open(os.path.join(log_dir, "checkpoint.log"), "a", encoding="utf-8") as f:
@@ -1423,6 +1425,8 @@ def main():
                         break
                     except Exception:
                         time.sleep(2)
+                else:
+                    raise RuntimeError(f"Failed to push logs for {csv_filename} chunk {chunk_idx+1} after 5 attempts.")
                         
                 # Clean local files to keep Kaggle disk at 0% usage
                 for d in list(uncommitted_csv_dirs):
@@ -1461,6 +1465,8 @@ def main():
             except Exception as e:
                 print(f"⚠️ Final push attempt {attempt+1}/5 failed: {e}")
                 time.sleep(3)
+        else:
+            raise RuntimeError("Failed to final push data to Hugging Face after 5 attempts.")
 
     print("\n==================================================================")
     status_str = "ABORTED (Rate Limit / Ban Triggered)" if IS_BANNED else "COMPLETED (All Assigned Chunks Done)"
