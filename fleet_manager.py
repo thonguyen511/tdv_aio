@@ -42,9 +42,16 @@ def get_account_for_node(node_index):
     raise ValueError(f"Invalid node_index: {node_index}. Must be between 0 and 19.")
 
 def get_env_with_token(token):
-    """Returns environment with KAGGLE_API_TOKEN set."""
+    """Returns environment with KAGGLE_API_TOKEN set and also writes ~/.kaggle/access_token."""
     env = os.environ.copy()
     env["KAGGLE_API_TOKEN"] = token
+    try:
+        kaggle_dir = os.path.expanduser("~/.kaggle")
+        os.makedirs(kaggle_dir, exist_ok=True)
+        with open(os.path.join(kaggle_dir, "access_token"), "w", encoding="utf-8") as f:
+            f.write(token.strip())
+    except Exception:
+        pass
     return env
 
 def get_kernel_slug(username, node_index):
