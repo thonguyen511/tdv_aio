@@ -107,6 +107,9 @@ print("=" * 65)
 print(f"🚀 KAGGLE WORKER NODE {{NODE_INDEX}} STARTING")
 print("=" * 65)
 
+# Ensure required libraries are installed
+subprocess.run([sys.executable, "-m", "pip", "install", "-q", "websocket-client", "huggingface_hub", "cryptography"])
+
 REPO_URL = "{REPO_URL}"
 REPO_DIR = "tdv_aio"
 
