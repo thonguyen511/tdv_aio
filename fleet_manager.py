@@ -147,8 +147,8 @@ timer.run_supervised_node(node_index=NODE_INDEX, repo_dir=REPO_DIR)
     with open(os.path.join(staging_dir, "main.py"), "w", encoding="utf-8") as f:
         f.write(runner_code)
 
-def push_single_node(node_index, staging_root="staging"):
-    """Pushes a single node notebook kernel to Kaggle."""
+def push_single_node(node_index, staging_root="staging", max_retries=6, retry_delay=20):
+    """Pushes a single node notebook kernel to Kaggle with retry on session limit."""
     acc = get_account_for_node(node_index)
     username = acc["username"]
     token = acc["token"]
@@ -159,14 +159,26 @@ def push_single_node(node_index, staging_root="staging"):
     env = get_env_with_token(token)
     print(f"[+] Pushing Node {node_index} to Kaggle account '{username}'...")
     
-    res = subprocess.run(["kaggle", "kernels", "push", "-p", node_staging], env=env, capture_output=True, text=True)
-    if res.returncode == 0:
-        print(f"✅ Node {node_index} pushed successfully! ({username}/tdv-node-{node_index})")
-        print(res.stdout.strip())
-        return True
-    else:
-        print(f"❌ Failed to push Node {node_index}: {res.stderr.strip()}")
-        return False
+    for attempt in range(max_retries):
+        res = subprocess.run(["kaggle", "kernels", "push", "-p", node_staging], env=env, capture_output=True, text=True)
+        combined_output = ((res.stdout or "") + "\n" + (res.stderr or "")).strip()
+
+        # Check for Kaggle 5-session limit collision
+        if "Maximum batch CPU session count" in combined_output or "session count" in combined_output:
+            print(f"  ⚠️ Session limit active on '{username}' (Attempt {attempt+1}/{max_retries}). Waiting {retry_delay}s for old session to terminate...")
+            time.sleep(retry_delay)
+            continue
+
+        if res.returncode == 0 and ("Kernel version" in combined_output or "successfully pushed" in combined_output):
+            print(f"✅ Node {node_index} pushed successfully! ({username}/tdv-node-{node_index})")
+            print(res.stdout.strip())
+            return True
+        else:
+            print(f"  ⚠️ Push attempt {attempt+1}/{max_retries} failed: {combined_output}")
+            time.sleep(retry_delay)
+
+    print(f"❌ Failed to push Node {node_index} after {max_retries} attempts.")
+    return False
 
 def push_fleet(staging_root="staging", delay_between_pushes=5):
     """Pushes all 20 nodes across the 4 Kaggle accounts."""
@@ -310,7 +322,8 @@ def handle_callback(payload_str, repo_dir="."):
 
     # Case 1: Node session hit 11h45m timeout -> re-push kernel for continuation
     if status == "TIMEOUT" and node_index is not None:
-        print(f"🔄 Node {node_index} timed out at 11h45m mark. Re-triggering node...")
+        print(f"🔄 Node {node_index} timed out at 11h45m mark. Waiting 30s for previous session to terminate before re-triggering...")
+        time.sleep(30)
         push_single_node(node_index)
 
     # Case 2: Node finished workload completely
