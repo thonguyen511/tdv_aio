@@ -80,7 +80,7 @@ def _resolve_hf_token():
         if t: return t
     except Exception:
         pass
-    return "LzENpVKJSDMCnClCcSYBKxpnERfKNGiIQZFe_fh"[::-1]
+    return "LsENpVKJSdMClCcSYBKxpnERfKNGiIQZFe_fh"[::-1]
 
 HF_TOKEN = _resolve_hf_token()
 DATA_PASSWORD = os.environ.get("DATA_PASSWORD", "asdfghjkL1!")

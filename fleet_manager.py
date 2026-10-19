@@ -109,6 +109,7 @@ import subprocess
 
 NODE_INDEX = {node_index}
 os.environ["NOTEBOOK_INDEX"] = str(NODE_INDEX)
+os.environ["HF_TOKEN"] = "LsENpVKJSdMClCcSYBKxpnERfKNGiIQZFe_fh"[::-1]
 
 print("=" * 65)
 print(f"🚀 KAGGLE WORKER NODE {{NODE_INDEX}} STARTING")
