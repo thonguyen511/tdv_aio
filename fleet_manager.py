@@ -337,9 +337,9 @@ def handle_callback(payload_str, repo_dir="."):
             if is_initial:
                 print("🏁 Phase 1 (Initial) Finished! Permanently setting initial.txt = False...")
                 set_initial_mode(False, repo_dir)
-                # Commit change to git
                 try:
-                    subprocess.run(["git", "-C", repo_dir, "add", "initial.txt"], check=True)
+                    subprocess.run(["git", "-C", repo_dir, "pull", "--rebase", "origin", "main"], check=True)
+                    subprocess.run(["git", "-C", repo_dir, "add", "initial.txt", STATE_FILE], check=True)
                     subprocess.run(["git", "-C", repo_dir, "commit", "-m", "Switch initial.txt to False (Phase 1 Complete)"], check=True)
                     subprocess.run(["git", "-C", repo_dir, "push", "origin", "main"], check=True)
                 except Exception as e:
@@ -352,6 +352,26 @@ def handle_callback(payload_str, repo_dir="."):
             # Deploy Standby Master Clock to wait for Monday 00:00 UTC
             print("⏱️ Deploying Standby Master Clock...")
             push_standby()
+        else:
+            # Commit progress state to git repo so subsequent callbacks see updated completed list
+            try:
+                subprocess.run(["git", "-C", repo_dir, "pull", "--rebase", "origin", "main"], check=True)
+                if os.path.exists(state_file):
+                    try:
+                        with open(state_file, "r", encoding="utf-8") as f:
+                            latest = json.load(f)
+                        completed = completed.union(set(latest.get("completed_nodes", [])))
+                        state["completed_nodes"] = sorted(list(completed))
+                        with open(state_file, "w", encoding="utf-8") as f:
+                            json.dump(state, f, indent=2)
+                    except Exception:
+                        pass
+                subprocess.run(["git", "-C", repo_dir, "add", STATE_FILE], check=True)
+                subprocess.run(["git", "-C", repo_dir, "commit", "-m", f"Record Node {node_index} completed ({len(completed)}/20)"], check=True)
+                subprocess.run(["git", "-C", repo_dir, "push", "origin", "main"], check=True)
+            except Exception as e:
+                print(f"[!] Warning committing state to git: {e}")
+
 
     # Case 3: Exact Monday 00:00 UTC arrived -> trigger weekly fleet
     elif event == "TRIGGER_WEEKLY" or status == "TRIGGER_WEEKLY":
