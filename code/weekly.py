@@ -21,6 +21,7 @@ import gc
 import requests
 import re
 import subprocess
+import signal
 from datetime import datetime, timezone
 
 try:
@@ -206,12 +207,74 @@ log_dir = os.path.join(base_dir, "log", NOTEBOOK_ID, WEEK_TAG)
 data_dir = os.path.join(base_dir, "data")
 log_repo_dir = f"log/{NOTEBOOK_ID}/{WEEK_TAG}"
 
+uncommitted_checkpoint_entries = []
+uncommitted_csv_dirs = set()
+
 # Ensure Hugging Face never uses default ~/.cache; route all caching into Kaggle working directory
 os.environ["HF_HOME"] = os.path.join(base_dir, "hf_home")
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
 os.makedirs(log_dir, exist_ok=True)
 os.makedirs(data_dir, exist_ok=True)
+
+def flush_all_to_hf(reason="shutdown"):
+    """Emergency/graceful flush that uploads all uncommitted checkpoints, failures, and data."""
+    global uncommitted_checkpoint_entries, uncommitted_csv_dirs
+    print(f"\n⏳ [Graceful Flush] Syncing all uncommitted data and logs to Hugging Face ({reason})...")
+    try:
+        has_data = any(os.path.exists(d) for d in uncommitted_csv_dirs)
+        if has_data:
+            try:
+                api.upload_folder(
+                    folder_path=data_dir,
+                    path_in_repo="data",
+                    repo_id=HF_REPO_ID,
+                    repo_type="dataset",
+                    commit_message=f"Flush on {reason} data"
+                )
+                for d in list(uncommitted_csv_dirs):
+                    shutil.rmtree(d, ignore_errors=True)
+                uncommitted_csv_dirs.clear()
+            except Exception as e:
+                print(f"⚠️ Flush data failed: {e}")
+
+        if uncommitted_checkpoint_entries:
+            with open(os.path.join(log_dir, "checkpoint.log"), "a", encoding="utf-8") as f:
+                for entry in uncommitted_checkpoint_entries:
+                    f.write(entry + "\n")
+            uncommitted_checkpoint_entries.clear()
+
+        has_logs = os.path.exists(log_dir) and (
+            (os.path.exists(os.path.join(log_dir, "checkpoint.log")) and os.path.getsize(os.path.join(log_dir, "checkpoint.log")) > 0) or
+            (os.path.exists(os.path.join(log_dir, "failures.log")) and os.path.getsize(os.path.join(log_dir, "failures.log")) > 0)
+        )
+        if has_logs:
+            try:
+                api.upload_folder(
+                    folder_path=log_dir,
+                    path_in_repo=log_repo_dir,
+                    repo_id=HF_REPO_ID,
+                    repo_type="dataset",
+                    commit_message=f"Flush on {reason} logs"
+                )
+                print("✅ Graceful logs flush completed.")
+            except Exception as e:
+                print(f"⚠️ Flush logs failed: {e}")
+    except Exception as e:
+        print(f"⚠️ Emergency flush error: {e}")
+
+def sigterm_handler(signum, frame):
+    global IS_BANNED
+    print(f"\n🛑 [Signal Received: {signum}] Stopping workers and flushing to Hugging Face...")
+    IS_BANNED = True
+    flush_all_to_hf("SIGTERM")
+    sys.exit(0)
+
+try:
+    signal.signal(signal.SIGTERM, sigterm_handler)
+    signal.signal(signal.SIGINT, sigterm_handler)
+except Exception:
+    pass
 
 # ==============================================================================
 # 🛠️ HELPER FUNCTIONS
@@ -602,6 +665,8 @@ def worker_loop(sessionid, sessionid_sign, jwt_token, pbar_list):
                                         
                         # Single-batch completion check (no pagination / request_more_data loop)
                         if series_done:
+                            if last_error_det:
+                                break
                             if interval == "1D":
                                 if expected_studies.issubset(completed_studies) or (series_done_time and time.time() - series_done_time > 1.5):
                                     break
@@ -1024,6 +1089,7 @@ def main():
         ).start()
         time.sleep(0.15)
 
+    global uncommitted_checkpoint_entries, uncommitted_csv_dirs
     uncommitted_checkpoint_entries = []
     uncommitted_csv_dirs = set()
 
@@ -1116,6 +1182,13 @@ def main():
             
             # Remaining Macro
             for sym in symbol_chunk:
+                meta = symbol_metadata.get(sym, {})
+                if meta.get("error"):
+                    for interval in ["1W", "1M"]:
+                        task_str = f"{sym} ({interval})"
+                        COMPLETED_TASKS.add(task_str)
+                    continue
+                    
                 for interval in ["1W", "1M"]:
                     task_str = f"{sym} ({interval})"
                     if task_str not in COMPLETED_TASKS:
@@ -1191,13 +1264,23 @@ def main():
                     except Exception as e:
                         print(f"⚠️ Push data attempt {attempt+1}/5 failed: {e}")
                         time.sleep(3)
-                        
-                if uncommitted_checkpoint_entries:
-                    with open(os.path.join(log_dir, "checkpoint.log"), "a", encoding="utf-8") as f:
-                        for entry in uncommitted_checkpoint_entries:
-                            f.write(entry + "\n")
-                    uncommitted_checkpoint_entries.clear()
-                    
+                
+                # Clean local files to keep Kaggle disk at 0% usage
+                for d in list(uncommitted_csv_dirs):
+                    shutil.rmtree(d, ignore_errors=True)
+                uncommitted_csv_dirs.clear()
+
+            if uncommitted_checkpoint_entries:
+                with open(os.path.join(log_dir, "checkpoint.log"), "a", encoding="utf-8") as f:
+                    for entry in uncommitted_checkpoint_entries:
+                        f.write(entry + "\n")
+                uncommitted_checkpoint_entries.clear()
+
+            has_logs = os.path.exists(log_dir) and (
+                (os.path.exists(os.path.join(log_dir, "checkpoint.log")) and os.path.getsize(os.path.join(log_dir, "checkpoint.log")) > 0) or
+                (os.path.exists(os.path.join(log_dir, "failures.log")) and os.path.getsize(os.path.join(log_dir, "failures.log")) > 0)
+            )
+            if has_logs:
                 for attempt in range(5):
                     try:
                         api.upload_folder(
@@ -1209,13 +1292,11 @@ def main():
                         )
                         print(f"✅ Successfully synced {csv_filename} chunk {chunk_idx+1} to Hugging Face.")
                         break
-                    except Exception:
+                    except Exception as e:
+                        print(f"⚠️ Push logs attempt {attempt+1}/5 failed: {e}")
                         time.sleep(2)
-                        
-                # Clean local files to keep Kaggle disk at 0% usage
-                for d in list(uncommitted_csv_dirs):
-                    shutil.rmtree(d, ignore_errors=True)
-                uncommitted_csv_dirs.clear()
+                else:
+                    print(f"⚠️ Warning: Failed to push logs for {csv_filename} chunk {chunk_idx+1} after 5 attempts.")
 
     # Final flush
     if uncommitted_checkpoint_entries and not IS_BANNED:

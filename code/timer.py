@@ -97,9 +97,9 @@ def run_supervised_node(node_index=0, repo_dir=".", timeout_seconds=DEFAULT_TIME
             print(f"[!] Sending SIGTERM to gracefully stop {target_script_name}...")
             proc.terminate()
             try:
-                proc.wait(timeout=15)
+                proc.wait(timeout=45)
             except subprocess.TimeoutExpired:
-                print("[!] Process still alive after 15s. Forcing kill...")
+                print("[!] Process still alive after 45s. Forcing kill...")
                 proc.kill()
             break
 
