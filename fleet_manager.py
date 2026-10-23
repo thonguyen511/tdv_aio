@@ -208,7 +208,7 @@ def push_standby(staging_root="staging"):
     os.makedirs(staging_dir, exist_ok=True)
 
     metadata = {
-        "id": f"{username}/tdv-standby-clock",
+        "id": f"{username}/tdv-standby-master-clock",
         "title": "TDV Standby Master Clock",
         "code_file": "main.py",
         "language": "python",
