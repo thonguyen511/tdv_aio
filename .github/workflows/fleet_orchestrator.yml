@@ -24,6 +24,11 @@ on:
     # Backup safety fallback for Monday 00:15 UTC (in case of total network failure)
     - cron: '15 0 * * 1'
 
+# Prevent parallel callback races when multiple nodes finish around the same time
+concurrency:
+  group: fleet-orchestrator
+  cancel-in-progress: false
+
 permissions:
   contents: write
 

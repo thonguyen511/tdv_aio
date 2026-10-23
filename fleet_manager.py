@@ -367,6 +367,14 @@ def handle_callback(payload_str, repo_dir="."):
                     subprocess.run(["git", "-C", repo_dir, "push", "origin", "main"], check=True)
                 except Exception as e:
                     print(f"[!] Warning committing initial.txt: {e}")
+            else:
+                try:
+                    subprocess.run(["git", "-C", repo_dir, "pull", "--rebase", "origin", "main"], check=True)
+                    subprocess.run(["git", "-C", repo_dir, "add", STATE_FILE], check=True)
+                    subprocess.run(["git", "-C", repo_dir, "commit", "-m", "Reset completed_nodes after weekly run"], check=True)
+                    subprocess.run(["git", "-C", repo_dir, "push", "origin", "main"], check=True)
+                except Exception as e:
+                    print(f"[!] Warning committing reset state to git: {e}")
 
             # Delete the 20 worker notebooks to remove version accumulation
             print("🧹 Cleaning up worker notebooks to eliminate version stacking...")
