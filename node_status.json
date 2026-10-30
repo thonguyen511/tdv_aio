@@ -4,30 +4,8 @@
   "week_m": "",
   "status": "running",
   "completed_nodes": [],
-  "pending_nodes": [
-    0,
-    1,
-    2,
-    3,
-    4,
-    5,
-    6,
-    7,
-    8,
-    9,
-    10,
-    11,
-    12,
-    13,
-    14,
-    15,
-    16,
-    17,
-    18,
-    19
-  ],
+  "pending_nodes": [],
   "node_retries": {},
   "cooldown_until": {},
-  "launched_at": "2026-10-30T07:19:13.192393+00:00",
-  "last_updated": "2026-10-30T07:20:26.267584+00:00"
+  "last_updated": "2026-10-30T08:06:15Z"
 }
