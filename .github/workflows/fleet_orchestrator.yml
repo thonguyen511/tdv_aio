@@ -1,0 +1,109 @@
+name: TradingView Fleet Orchestrator
+
+on:
+  repository_dispatch:
+    types: [node_callback]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Fleet Action to Execute'
+        required: true
+        default: 'reconcile'
+        type: choice
+        options:
+          - reconcile
+          - push_fleet
+          - push_node
+          - push_standby
+          - delete_fleet
+          - status
+      node_index:
+        description: 'Node Index (0-19, only needed for push_node)'
+        required: false
+        default: '0'
+  schedule:
+    # Periodic self-healing reconciler every 20 minutes (resumes stopped/timed-out nodes & launches Monday weekly run)
+    - cron: '*/20 * * * *'
+    # Explicit Monday 00:05 UTC weekly launch / check
+    - cron: '5 0 * * 1'
+
+# Serialize orchestrator runs so state updates and Kaggle slot checks don't race
+concurrency:
+  group: fleet-orchestrator
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  orchestrate:
+    runs-on: ubuntu-latest
+    env:
+      KAGGLE_TOKEN_0: ${{ secrets.KAGGLE_TOKEN_0 }}
+      KAGGLE_TOKEN_1: ${{ secrets.KAGGLE_TOKEN_1 }}
+      KAGGLE_TOKEN_2: ${{ secrets.KAGGLE_TOKEN_2 }}
+      KAGGLE_TOKEN_3: ${{ secrets.KAGGLE_TOKEN_3 }}
+      GH_PAT: ${{ secrets.GH_PAT }}
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      DATA_PASSWORD: ${{ secrets.DATA_PASSWORD }}
+      TV_EMAILS_JSON: ${{ secrets.TV_EMAILS_JSON }}
+      TV_LOGIN_PASSWORD: ${{ secrets.TV_LOGIN_PASSWORD }}
+      TV_ULTIMATE_EMAIL: ${{ secrets.TV_ULTIMATE_EMAIL }}
+      TV_ULTIMATE_PASSWORD: ${{ secrets.TV_ULTIMATE_PASSWORD }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install "kaggle>=2.2.4" "huggingface_hub>=0.23.0"
+
+      - name: Configure Git Identity
+        run: |
+          git config user.name "Fleet-Orchestrator"
+          git config user.email "actions@github.com"
+
+      - name: Handle Callback (repository_dispatch)
+        if: github.event_name == 'repository_dispatch'
+        env:
+          CALLBACK_PAYLOAD: ${{ toJson(github.event.client_payload) }}
+        run: |
+          echo "Processing incoming callback payload..."
+          python fleet_manager.py handle-callback --payload "$CALLBACK_PAYLOAD"
+
+      - name: Manual Workflow Dispatch
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          ACTION: ${{ inputs.action }}
+          NODE_INDEX: ${{ inputs.node_index }}
+        run: |
+          echo "Executing manual action: $ACTION"
+          if [ "$ACTION" = "reconcile" ]; then
+            python fleet_manager.py reconcile
+          elif [ "$ACTION" = "push_fleet" ]; then
+            python fleet_manager.py push-fleet
+          elif [ "$ACTION" = "push_node" ]; then
+            python fleet_manager.py push-node "$NODE_INDEX"
+          elif [ "$ACTION" = "push_standby" ]; then
+            python fleet_manager.py push-standby
+          elif [ "$ACTION" = "delete_fleet" ]; then
+            python fleet_manager.py delete-fleet
+          elif [ "$ACTION" = "status" ]; then
+            python fleet_manager.py status
+          fi
+
+      - name: Scheduled Reconcile & Weekly Check
+        if: github.event_name == 'schedule'
+        run: |
+          echo "Running scheduled fleet reconciliation..."
+          python fleet_manager.py reconcile

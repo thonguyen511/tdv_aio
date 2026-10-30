@@ -1,0 +1,11 @@
+{
+  "run_id": "INITIAL",
+  "phase": "initial",
+  "week_m": "",
+  "status": "idle",
+  "completed_nodes": [],
+  "pending_nodes": [],
+  "node_retries": {},
+  "cooldown_until": {},
+  "last_updated": "2026-10-30T07:18:27Z"
+}
