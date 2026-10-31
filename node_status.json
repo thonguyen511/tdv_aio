@@ -19,10 +19,8 @@
     18,
     19
   ],
-  "pending_nodes": [
-    7
-  ],
+  "pending_nodes": [],
   "node_retries": {},
   "cooldown_until": {},
-  "last_updated": "2026-10-31T06:52:50.844889+00:00"
+  "last_updated": "2026-10-31T06:53:08.780653+00:00"
 }
