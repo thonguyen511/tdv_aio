@@ -3,11 +3,13 @@
   "phase": "weekly",
   "week_m": "4426",
   "status": "running",
-  "completed_nodes": [],
+  "completed_nodes": [
+    2
+  ],
   "pending_nodes": [
     4
   ],
   "node_retries": {},
   "cooldown_until": {},
-  "last_updated": "2026-10-31T22:50:02.872624+00:00"
+  "last_updated": "2026-10-31T23:34:48.101535+00:00"
 }
