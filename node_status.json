@@ -2,7 +2,7 @@
   "run_id": "INITIAL",
   "phase": "initial",
   "week_m": "",
-  "status": "running",
+  "status": "standby",
   "completed_nodes": [
     0,
     1,
@@ -28,5 +28,6 @@
   "pending_nodes": [],
   "node_retries": {},
   "cooldown_until": {},
-  "last_updated": "2026-10-31T17:40:03.723895+00:00"
+  "last_updated": "2026-10-31T17:40:08.053917+00:00",
+  "completed_at": "2026-10-31T17:40:08.053884+00:00"
 }
