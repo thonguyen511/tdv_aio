@@ -6,10 +6,8 @@
   "completed_nodes": [
     2
   ],
-  "pending_nodes": [
-    4
-  ],
+  "pending_nodes": [],
   "node_retries": {},
   "cooldown_until": {},
-  "last_updated": "2026-10-31T23:34:48.101535+00:00"
+  "last_updated": "2026-10-31T23:35:10.683907+00:00"
 }
