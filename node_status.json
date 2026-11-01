@@ -4,6 +4,7 @@
   "week_m": "4426",
   "status": "running",
   "completed_nodes": [
+    1,
     2,
     11,
     12,
@@ -13,5 +14,5 @@
   "pending_nodes": [],
   "node_retries": {},
   "cooldown_until": {},
-  "last_updated": "2026-11-01T06:01:56.585018+00:00"
+  "last_updated": "2026-11-01T06:08:01.425923+00:00"
 }
